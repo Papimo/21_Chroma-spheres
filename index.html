@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chroma Generator - V13.7 (Smooth Audio)</title>
+    <style>
+        :root {
+            --primary: #00d4ff;
+            --primary-hover: #00aacc;
+            --bg-panel: rgba(15, 15, 18, 0.95);
+            --bg-control: rgba(255, 255, 255, 0.05);
+            --border: #333;
+        }
+
+        body { 
+            margin: 0; overflow: hidden; background-color: #050505; color: #fff; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            touch-action: none; transition: background 0.5s ease;
+        }
+        #canvas-container { 
+            width: 100vw; height: 100vh; cursor: grab; position: absolute; top: 0; left: 0; z-index: 1;
+        }
+        #canvas-container:active { cursor: grabbing; }
+        
+        #controls { 
+            position: absolute; top: 15px; left: 15px; background: var(--bg-panel); 
+            padding: 18px; border-radius: 12px; border: 1px solid var(--border);
+            backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+            z-index: 10; width: 360px; max-height: 92vh; overflow-y: auto;
+        }
+        #controls::-webkit-scrollbar { width: 6px; }
+        #controls::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+        h2 { 
+            margin-top: 0; font-size: 18px; margin-bottom: 15px; letter-spacing: 1px;
+            text-transform: uppercase; border-bottom: 2px solid var(--primary); padding-bottom: 10px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        #fps-counter { font-size: 10px; color: #00ff88; background: rgba(0,255,136,0.1); padding: 4px 8px; border-radius: 4px; border: 1px solid #00ff88; font-family: monospace;}
+
+        details { margin-bottom: 12px; background: var(--bg-control); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+        summary { font-size: 12px; color: var(--primary); padding: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; user-select: none; background: rgba(0,0,0,0.3); transition: background 0.2s;}
+        summary:hover { background: rgba(255,255,255,0.05); }
+        .details-content { padding: 15px; }
+
+        .control-group { margin-bottom: 15px; }
+        .hoofd-label { margin-bottom: 8px; font-size: 12px; font-weight: 600; display: block; color: #eee; }
+        
+        .input-row { display: flex; align-items: center; gap: 10px; margin-bottom: 4px;}
+        .mini-label { width: 120px; font-size: 11px; color: #bbb; }
+        
+        /* UX: Gestylede Matrix Grid */
+        .matrix-row {
+            display: grid;
+            grid-template-columns: 2fr 3fr 2fr;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+            background: rgba(0,0,0,0.2);
+            padding: 6px;
+            border-radius: 6px;
+        }
+        .matrix-lbl { font-size: 10px; color: #ccc; font-weight: 500;}
+
+        input[type="range"] { flex-grow: 1; accent-color: var(--primary); cursor: pointer; height: 4px; }
+        input[type="number"], select { 
+            width: 100%; background: #111; border: 1px solid #555; color: white; 
+            padding: 6px 8px; border-radius: 4px; font-size: 11px; box-sizing: border-box;
+            outline: none; transition: border 0.2s;
+        }
+        input[type="number"]:focus, select:focus { border-color: var(--primary); }
+        input[type="number"] { width: 50px; text-align: center; }
+        
+        .color-pickers { display: none; gap: 10px; margin-top: 10px; }
+        input[type="color"] { border: none; width: 100%; height: 30px; cursor: pointer; background: transparent; padding: 0;}
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid #555; border-radius: 4px; }
+        
+        .checkbox-row { display: flex; align-items: center; margin-top: 8px; font-size: 11px; color: #ccc; cursor: pointer; }
+        .checkbox-row input { margin-right: 8px; cursor: pointer; accent-color: var(--primary);}
+
+        button { 
+            margin-top: 8px; width: 100%; padding: 12px; border-radius: 6px; color: white; 
+            font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 11px; 
+            letter-spacing: 1px; transition: all 0.3s; border: none; 
+        }
+        .btn-audio { background: linear-gradient(45deg, #2a2a35, #3a3a45); border: 1px solid #555; }
+        .btn-sys { background: linear-gradient(45deg, #ff0055, #9900ff); box-shadow: 0 4px 15px rgba(255,0,85,0.4); }
+        .btn-export { background: linear-gradient(45deg, #00d4ff, #0055ff); box-shadow: 0 4px 15px rgba(0,212,255,0.3); margin-top: 15px;}
+        .btn-nuke { background: linear-gradient(45deg, #ff0000, #ff5500); box-shadow: 0 4px 15px rgba(255,0,0,0.4); font-size: 12px;}
+        button:hover { filter: brightness(1.2); transform: translateY(-1px); }
+        
+        .preset-row { display: flex; gap: 6px; margin-bottom: 15px; }
+        .preset-btn { background: #222; border: 1px solid #444; padding: 8px 5px; font-size: 10px; flex: 1; margin: 0;}
+        .preset-btn:hover { background: var(--primary); border-color: var(--primary); color: #000; }
+
+        #individual-panel { display: none; border-color: #ff0055; background: rgba(255, 0, 85, 0.05); padding: 15px; border-radius: 8px; border: 1px solid #ff0055; margin-bottom: 12px; }
+        .close-btn { background: #444; margin-top: 12px; }
+
+        /* UX: Audio Visualizer Bars */
+        #visualizer {
+            display: flex; align-items: flex-end; justify-content: space-between;
+            height: 40px; background: rgba(0,0,0,0.5); border-radius: 6px; padding: 5px; gap: 2px;
+            margin-bottom: 15px; border: 1px solid #333;
+        }
+        .vis-col { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%;}
+        .vis-bar { width: 100%; background: var(--primary); border-radius: 2px 2px 0 0; transition: height 0.05s ease-out; height: 5%; }
+        .vis-lbl { font-size: 8px; color: #888; margin-top: 3px; font-family: monospace; text-transform: uppercase;}
+        
+        .freq-select { font-size: 9px !important; padding: 4px !important;}
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
+</head>
+<body>
+    <div id="controls">
+        <h2>Chroma <span style="color:var(--primary)">V13.7</span> <div id="fps-counter">60 FPS</div></h2>
+
+        <div class="preset-row">
+            <button class="preset-btn" id="preZen">Zen</button>
+            <button class="preset-btn" id="preRave">Rave</button>
+            <button class="preset-btn" id="preChaos">Chaos</button>
+        </div>
+        
+        <button id="nukeBtn" class="btn-nuke">☢️ Nuke (Randomize All)</button>
+        <div style="margin-bottom:15px;"></div>
+        
+        <div id="individual-panel">
+            <label class="hoofd-label" style="color:#ff0055;">GESELECTEERD OBJECT</label>
+            <div class="input-row" style="margin-bottom:8px;">
+                <label style="font-size:11px;">Schaal:</label>
+                <input type="range" id="indScale" min="0.5" max="5" value="1" step="0.1">
+            </div>
+            <label style="font-size:11px;">Kleur Override:</label>
+            <div class="input-row">
+                <input type="color" id="indCol1" value="#ffffff"><input type="color" id="indCol2" value="#ffffff"><input type="color" id="indCol3" value="#ffffff">
+            </div>
+            <button class="close-btn" id="deselectBtn">Deselecteren</button>
+        </div>
+
+        <details open>
+            <summary>🎛️ Audio Matrix & Frequenties</summary>
+            <div class="details-content">
+                
+                <!-- UX: Visualizer -->
+                <div id="visualizer">
+                    <div class="vis-col"><div class="vis-bar" id="bar-bass" style="background:#ff0055;"></div><div class="vis-lbl">LOW</div></div>
+                    <div class="vis-col"><div class="vis-bar" id="bar-mid" style="background:#ffaa00;"></div><div class="vis-lbl">MID</div></div>
+                    <div class="vis-col"><div class="vis-bar" id="bar-high" style="background:#00d4ff;"></div><div class="vis-lbl">HIGH</div></div>
+                </div>
+
+                <div class="control-group">
+                    <label class="hoofd-label">Koppel Effecten aan Audiobanden</label>
+                    
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Vervorming</span>
+                        <input type="range" id="audDisp" min="0" max="5" value="1.0" step="0.1">
+                        <select id="mapDisp" class="freq-select"><option value="bass" selected>LOW</option><option value="mid">MID</option><option value="high">HIGH</option></select>
+                    </div>
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Glow / Kleur</span>
+                        <input type="range" id="audGlow" min="0" max="5" value="1.0" step="0.1">
+                        <select id="mapGlow" class="freq-select"><option value="bass">LOW</option><option value="mid">MID</option><option value="high" selected>HIGH</option></select>
+                    </div>
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Grootte (Scale)</span>
+                        <input type="range" id="audScale" min="0" max="3" value="0.0" step="0.1">
+                        <select id="mapScale" class="freq-select"><option value="bass" selected>LOW</option><option value="mid">MID</option><option value="high">HIGH</option></select>
+                    </div>
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Rotatie Snelheid</span>
+                        <input type="range" id="audRot" min="0" max="10" value="0.0" step="0.1">
+                        <select id="mapRot" class="freq-select"><option value="bass">LOW</option><option value="mid" selected>MID</option><option value="high">HIGH</option></select>
+                    </div>
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Vloeistof (Intern)</span>
+                        <input type="range" id="audSpeed" min="0" max="10" value="0.0" step="0.1">
+                        <select id="mapSpeed" class="freq-select"><option value="bass">LOW</option><option value="mid" selected>MID</option><option value="high">HIGH</option></select>
+                    </div>
+                    <div class="matrix-row">
+                        <span class="matrix-lbl">Chrom. Aberration</span>
+                        <input type="range" id="audRGB" min="0" max="0.1" value="0" step="0.001">
+                        <select id="mapRGB" class="freq-select"><option value="bass" selected>LOW</option><option value="mid">MID</option><option value="high">HIGH</option></select>
+                    </div>
+
+                </div>
+                <div class="control-group" style="border-top: 1px solid #333; padding-top:10px; margin-top:10px;">
+                    <label class="hoofd-label">Geluidsgolven (Vloeiendheid & Delay)</label>
+                    <div class="input-row">
+                        <label class="mini-label">Demping (Smoothness)</label>
+                        <input type="range" id="audioSmoothSlider" min="0.0" max="0.98" value="0.85" step="0.01">
+                    </div>
+                    <div class="input-row">
+                        <label class="mini-label">Vertraging (Frames)</label>
+                        <input type="range" id="audioDelaySlider" min="0" max="100" value="0" step="1">
+                    </div>
+                    <label class="checkbox-row"><input type="checkbox" id="audioRandomDelayCheck"> Geef elk object een willekeurige delay</label>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🚀 Chaos Modifiers</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="checkbox-row"><input type="checkbox" id="swarmCheck"> 🐝 Zwaartekracht/Swarm Modus (Los Grid)</label>
+                    <label class="checkbox-row"><input type="checkbox" id="shapeShiftCheck"> 🔄 Shape-Shifting op Bass</label>
+                    <label class="checkbox-row"><input type="checkbox" id="explosionsCheck"> 💥 Particle Explosies op Bass</label>
+                    <label class="checkbox-row"><input type="checkbox" id="cinematicCheck"> 🎥 Cinematic Auto-Camera</label>
+                    <label class="checkbox-row"><input type="checkbox" id="autopilotCheck"> 👻 Auto-Pilot (Schuift zelf met sliders)</label>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Tijdmachine & Glitch-kans</label>
+                    <input type="range" id="glitchSlider" min="0" max="1" value="0" step="0.01">
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>1. Visuals & Thema</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">3D Vorm</label>
+                    <select id="shapeSelect">
+                        <option value="sphere">Bol (Sphere)</option>
+                        <option value="cube">Kubus (Cube)</option>
+                        <option value="torus">Donut (Torus)</option>
+                        <option value="knot">Torus Knot (Complex!)</option>
+                        <option value="icosahedron">Dobbelsteen (Icosahedron)</option>
+                        <option value="random">🎲 Mix! (Random per object)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Kleur Thema</label>
+                    <select id="themeSelect">
+                        <option value="random">Pure Chaos (Random)</option>
+                        <option value="cyberpunk">Cyberpunk (Roze/Cyaan)</option>
+                        <option value="sunset">Sunset (Oranje/Paars)</option>
+                        <option value="monochrome">Monochroom (Zwart/Wit)</option>
+                        <option value="custom">Eigen Kleuren...</option>
+                    </select>
+                    <div class="color-pickers" id="customColorPickers">
+                        <input type="color" id="cColor1" value="#ff0055">
+                        <input type="color" id="cColor2" value="#00d4ff">
+                        <input type="color" id="cColor3" value="#66ff00">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="checkbox-row"><input type="checkbox" id="wireframeCheck"> 🌐 Wireframe Modus</label>
+                    <label class="checkbox-row"><input type="checkbox" id="particlesCheck" checked> ✨ Stardust Achtergrond</label>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>2. Grid & Rotaties</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">Grid Formaat</label>
+                    <div class="input-row">
+                        <input type="range" id="gridSlider" min="1" max="10" value="1" step="1">
+                        <input type="number" id="gridNum" min="1" max="10" value="1">
+                    </div>
+                </div>
+                <div class="control-group" style="border-top: 1px solid #333; padding-top:10px;">
+                    <label class="checkbox-row"><input type="checkbox" id="randomRotCheck"> Willekeurige Assen (Rotatie)</label>
+                    <label class="hoofd-label" style="margin-top:10px;">Snelheid Willekeurige Assen (Precisie)</label>
+                    <input type="range" id="randRotSpeedSlider" min="0" max="5" value="0.5" step="0.05">
+                </div>
+                <div class="control-group" style="border-top: 1px solid #333; padding-top:10px;">
+                    <label class="checkbox-row"><input type="checkbox" id="randomSizeCheck"> Random Grootte per object</label>
+                    <label class="checkbox-row"><input type="checkbox" id="randomPosCheck"> Random Positie Jitter</label>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>3. Camera & Basis Snelheden</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">Camera Zoom</label>
+                    <input type="range" id="zoomSlider" min="2" max="250" value="4.5" step="0.5">
+                </div>
+                <div class="control-group">
+                    <label class="checkbox-row"><input type="checkbox" id="autoRotCheck"> 🔄 Auto-Roteer Camera</label>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Basis Vloeistof / Animatiesnelheid</label>
+                    <input type="range" id="speedSlider" min="0" max="10" value="1" step="0.1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Basis Object Rotatie Snelheid</label>
+                    <input type="range" id="rotSpeedSlider" min="0" max="10" value="1" step="0.1">
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>4. Effecten & Vervorming</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">Basis Vervorming (3D)</label>
+                    <input type="range" id="dispSlider" min="0" max="2" value="0.3" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Basis Glow / Bloom Intensiteit</label>
+                    <input type="range" id="bloomSlider" min="0" max="3" value="0.0" step="0.1"> 
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Basis Chromatic Aberration</label>
+                    <input type="range" id="rgbSlider" min="0" max="0.01" value="0.0015" step="0.0005">
+                </div>
+            </div>
+        </details>
+
+        <details open>
+            <summary>5. Input & Export</summary>
+            <div class="details-content">
+                <button id="sysAudioBtn" class="btn-sys">🎵 Systeem Audio (YouTube)</button>
+                <button id="micBtn" class="btn-audio">🎙️ Microfoon (Stem)</button>
+                <button id="exportBtn" class="btn-export">📸 Sla op als Afbeelding (PNG)</button>
+            </div>
+        </details>
+
+    </div>
+    
+    <div id="canvas-container"></div>
+    <script src="main.js"></script>
+</body>
+</html>
