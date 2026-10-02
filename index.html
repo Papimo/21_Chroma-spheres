@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chroma Generator - V13.7 (Smooth Audio)</title>
+    <title>Chroma Generator - V15</title>
     <style>
         :root {
             --primary: #00d4ff;
@@ -27,8 +27,16 @@
             position: absolute; top: 15px; left: 15px; background: var(--bg-panel); 
             padding: 18px; border-radius: 12px; border: 1px solid var(--border);
             backdrop-filter: blur(20px); box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-            z-index: 10; width: 360px; max-height: 92vh; overflow-y: auto;
+            z-index: 10; width: min(360px, calc(100vw - 30px)); max-height: 92vh; overflow-y: auto; box-sizing: border-box;
         }
+        #controls.hidden { display: none; }
+        #ui-toggle {
+            position: fixed; top: 15px; right: 15px; z-index: 11; width: auto; margin: 0;
+            padding: 8px 12px; background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 8px; font-size: 11px; letter-spacing: 0;
+        }
+        #audio-status { display: none; font-size: 11px; color: #ffaa00; margin-top: 8px; line-height: 1.4; }
+        .btn-reset { background: #333; border: 1px solid #555; margin-top: 8px; }
         #controls::-webkit-scrollbar { width: 6px; }
         #controls::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
 
@@ -108,6 +116,18 @@
         .vis-bar { width: 100%; background: var(--primary); border-radius: 2px 2px 0 0; transition: height 0.05s ease-out; height: 5%; }
         .vis-lbl { font-size: 8px; color: #888; margin-top: 3px; font-family: monospace; text-transform: uppercase;}
         
+        .btn-surprise { background: linear-gradient(45deg, #ffb300, #ff2fa0, #7a5cff); box-shadow: 0 4px 15px rgba(255,47,160,0.4); font-size: 12px; margin-top: 0; }
+        .btn-rec.recording { background: linear-gradient(45deg, #ff0000, #aa0000); animation: recpulse 1s infinite; }
+        @keyframes recpulse { 50% { opacity: 0.6; } }
+        .btn-row { display: flex; gap: 6px; }
+        .btn-row button { margin-top: 8px; }
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: rgba(15,15,18,0.95); border: 1px solid var(--primary); color: #fff; padding: 10px 18px;
+            border-radius: 8px; font-size: 12px; z-index: 20; opacity: 0; pointer-events: none; transition: all 0.3s;
+        }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .hint { font-size: 10px; color: #888; margin-top: 4px; line-height: 1.4; }
         .freq-select { font-size: 9px !important; padding: 4px !important;}
     </style>
     
@@ -119,25 +139,50 @@
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/RGBShiftShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/AfterimageShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/AfterimagePass.js"></script>
 </head>
 <body>
+    <button id="ui-toggle" title="Paneel tonen/verbergen (H)">☰ UI (H)</button>
     <div id="controls">
-        <h2>Chroma <span style="color:var(--primary)">V13.7</span> <div id="fps-counter">60 FPS</div></h2>
+        <h2>Chroma <span style="color:var(--primary)">V15</span> <div id="fps-counter">60 FPS</div></h2>
+
+        <button id="surpriseBtn" class="btn-surprise">🎲 Verras me! (R)</button>
+        <div style="margin-bottom:12px;"></div>
 
         <div class="preset-row">
-            <button class="preset-btn" id="preZen">Zen</button>
-            <button class="preset-btn" id="preRave">Rave</button>
-            <button class="preset-btn" id="preChaos">Chaos</button>
+            <button class="preset-btn" id="pre-zen">Zen</button>
+            <button class="preset-btn" id="pre-rave">Rave</button>
+            <button class="preset-btn" id="pre-chaos">Chaos</button>
         </div>
-        
+        <div class="preset-row">
+            <button class="preset-btn" id="pre-vaporwave">Vaporwave</button>
+            <button class="preset-btn" id="pre-inferno">Inferno</button>
+            <button class="preset-btn" id="pre-deepsea">Diepzee</button>
+        </div>
+        <div class="preset-row">
+            <button class="preset-btn" id="pre-hologram">Hologram</button>
+            <button class="preset-btn" id="pre-glitch">Glitch</button>
+            <button class="preset-btn" id="pre-kaleido">Kaleido</button>
+        </div>
+
         <button id="nukeBtn" class="btn-nuke">☢️ Nuke (Randomize All)</button>
         <div style="margin-bottom:15px;"></div>
-        
+
         <div id="individual-panel">
             <label class="hoofd-label" style="color:#ff0055;">GESELECTEERD OBJECT</label>
             <div class="input-row" style="margin-bottom:8px;">
                 <label style="font-size:11px;">Schaal:</label>
                 <input type="range" id="indScale" min="0.5" max="5" value="1" step="0.1">
+            </div>
+            <div class="input-row" style="margin-bottom:8px;">
+                <label style="font-size:11px;">Vorm:</label>
+                <select id="indShape">
+                    <option value="sphere">Bol</option><option value="cube">Kubus</option><option value="torus">Donut</option>
+                    <option value="knot">Torus Knot</option><option value="knot2">Torus Knot 3:5</option><option value="icosahedron">Icosahedron</option>
+                    <option value="octahedron">Octahedron</option><option value="dodecahedron">Dodecahedron</option>
+                    <option value="cylinder">Cilinder</option><option value="hoop">Hoepel</option>
+                </select>
             </div>
             <label style="font-size:11px;">Kleur Override:</label>
             <div class="input-row">
@@ -203,6 +248,8 @@
                         <input type="range" id="audioDelaySlider" min="0" max="100" value="0" step="1">
                     </div>
                     <label class="checkbox-row"><input type="checkbox" id="audioRandomDelayCheck"> Geef elk object een willekeurige delay</label>
+                    <label class="checkbox-row"><input type="checkbox" id="delayWaveCheck"> 🌊 Delay op afstand van het midden (golf)</label>
+                    <div class="hint">Werkt met de Vertraging-slider: de beat rolt dan als een golf door de vormen.</div>
                 </div>
             </div>
         </details>
@@ -224,6 +271,44 @@
             </div>
         </details>
 
+        <details open>
+            <summary>✨ Stijl & Vervorming</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">Oppervlak-stijl (shader)</label>
+                    <select id="styleSelect">
+                        <option value="0">Vloeibaar (klassiek)</option>
+                        <option value="1">Olievlek / Iriserend</option>
+                        <option value="2">Cartoon (Toon + inkt)</option>
+                        <option value="3">Hologram (scanlines)</option>
+                        <option value="4">Plasma / Vuur</option>
+                        <option value="5">Neon-glas (felle rand)</option>
+                        <option value="6">Regenboog-normalen</option>
+                        <option value="mix">🎲 Mix! (random per object)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Vervormings-type</label>
+                    <select id="deformSelect">
+                        <option value="0">Blob (zacht)</option>
+                        <option value="1">Egel (pieken)</option>
+                        <option value="2">Twist (draaiing)</option>
+                        <option value="3">Rimpels (golven)</option>
+                        <option value="4">Kristal (facetten)</option>
+                        <option value="mix">🎲 Mix! (random per object)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Tint draaien (graden)</label>
+                    <input type="range" id="hueSlider" min="0" max="360" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🌈 Regenboog-cyclus (snelheid)</label>
+                    <input type="range" id="hueSpeedSlider" min="0" max="1" value="0" step="0.01">
+                </div>
+            </div>
+        </details>
+
         <details>
             <summary>1. Visuals & Thema</summary>
             <div class="details-content">
@@ -235,6 +320,11 @@
                         <option value="torus">Donut (Torus)</option>
                         <option value="knot">Torus Knot (Complex!)</option>
                         <option value="icosahedron">Dobbelsteen (Icosahedron)</option>
+                        <option value="knot2">Torus Knot 3:5 (Pretzel)</option>
+                        <option value="octahedron">Diamant (Octahedron)</option>
+                        <option value="dodecahedron">Dodecahedron</option>
+                        <option value="cylinder">Cilinder</option>
+                        <option value="hoop">Hoepel (dun)</option>
                         <option value="random">🎲 Mix! (Random per object)</option>
                     </select>
                 </div>
@@ -245,6 +335,14 @@
                         <option value="cyberpunk">Cyberpunk (Roze/Cyaan)</option>
                         <option value="sunset">Sunset (Oranje/Paars)</option>
                         <option value="monochrome">Monochroom (Zwart/Wit)</option>
+                        <option value="vaporwave">Vaporwave (Roze/Cyaan)</option>
+                        <option value="ocean">Oceaan (Cyaan/Blauw)</option>
+                        <option value="fire">Vuur (Rood/Geel)</option>
+                        <option value="toxic">Toxic (Lime/Paars)</option>
+                        <option value="aurora">Aurora (Groen/Violet)</option>
+                        <option value="candy">Candy (Pastel)</option>
+                        <option value="gold">Goud</option>
+                        <option value="rainbow">🌈 Regenboog (per object)</option>
                         <option value="custom">Eigen Kleuren...</option>
                     </select>
                     <div class="color-pickers" id="customColorPickers">
@@ -257,6 +355,51 @@
                     <label class="checkbox-row"><input type="checkbox" id="wireframeCheck"> 🌐 Wireframe Modus</label>
                     <label class="checkbox-row"><input type="checkbox" id="particlesCheck" checked> ✨ Stardust Achtergrond</label>
                 </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Stardust gedrag</label>
+                    <select id="starModeSelect">
+                        <option value="drift">Zweven</option>
+                        <option value="warp">Warp (hyperspace)</option>
+                        <option value="swirl">Draaikolk</option>
+                        <option value="rain">Regen</option>
+                        <option value="rise">Opstijgen (bubbels/vonken)</option>
+                    </select>
+                    <div class="input-row" style="margin-top:8px;">
+                        <label class="mini-label">Deeltjesgrootte</label>
+                        <input type="range" id="starSizeSlider" min="0.02" max="0.4" value="0.08" step="0.01">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Achtergrond</label>
+                    <select id="bgSelect">
+                        <option value="dark">Zwart</option>
+                        <option value="nebula">🌌 Nevel (shader)</option>
+                        <option value="synthgrid">🌅 Synthwave grid + zon (shader)</option>
+                        <option value="tunnel">🕳️ Tunnel (shader)</option>
+                        <option value="aurora">🌠 Aurora (shader)</option>
+                        <option value="voronoi">🔷 Cellen (shader)</option>
+                        <option value="galaxy">🌀 Sterrenstelsel (shader)</option>
+                        <option value="ripples">💧 Rimpelringen op de beat (shader)</option>
+                        <option value="deep">Diepe nacht (verloop)</option>
+                        <option value="cycle">Kleurcyclus (langzaam)</option>
+                        <option value="pulse">Pulserend op bass</option>
+                        <option value="custom">Eigen kleur...</option>
+                    </select>
+                    <input type="color" id="bgColor" value="#101030" style="margin-top:8px;">
+                    <div class="input-row" style="margin-top:8px;">
+                        <label class="mini-label">Helderheid (shader)</label>
+                        <input type="range" id="bgBright" min="0.1" max="1.5" value="0.6" step="0.05">
+                    </div>
+                    <div class="input-row">
+                        <label class="mini-label">Snelheid (shader)</label>
+                        <input type="range" id="bgSpeed" min="0" max="3" value="1" step="0.05">
+                    </div>
+                    <div class="input-row">
+                        <label class="mini-label">Audio-reactie</label>
+                        <input type="range" id="bgReact" min="0" max="2" value="1" step="0.05">
+                    </div>
+                    <div class="hint">De shader-achtergronden nemen de kleuren van je thema over.</div>
+                </div>
             </div>
         </details>
 
@@ -264,7 +407,19 @@
             <summary>2. Grid & Rotaties</summary>
             <div class="details-content">
                 <div class="control-group">
-                    <label class="hoofd-label">Grid Formaat</label>
+                    <label class="hoofd-label">Opstelling</label>
+                    <select id="layoutSelect">
+                        <option value="grid">Grid (raster)</option>
+                        <option value="ring">Ring</option>
+                        <option value="sphere">Bol (Fibonacci)</option>
+                        <option value="spiral">Sterrenstelsel (spiraal)</option>
+                        <option value="helix">Helix (DNA)</option>
+                        <option value="wave">Golvend vlak</option>
+                        <option value="cloud">Wolk (random 3D)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Aantal objecten (N × N)</label>
                     <div class="input-row">
                         <input type="range" id="gridSlider" min="1" max="10" value="1" step="1">
                         <input type="number" id="gridNum" min="1" max="10" value="1">
@@ -286,11 +441,44 @@
             <summary>3. Camera & Basis Snelheden</summary>
             <div class="details-content">
                 <div class="control-group">
+                    <label class="hoofd-label">📷 Camera-modus (C)</label>
+                    <select id="camMode">
+                        <option value="free">Vrij (slepen)</option>
+                        <option value="orbit">Orbit (cirkelt rond)</option>
+                        <option value="fly">Fly-through (vliegt erdoor)</option>
+                        <option value="vertigo">Vertigo (dolly-zoom)</option>
+                    </select>
+                    <div class="input-row" style="margin-top:8px;">
+                        <label class="mini-label">Orbit/Fly snelheid</label>
+                        <input type="range" id="camOrbitSpeed" min="0" max="2" value="0.3" step="0.05">
+                    </div>
+                    <div class="input-row">
+                        <label class="mini-label">Beeldhoek (FOV)</label>
+                        <input type="range" id="camFov" min="20" max="110" value="45" step="1">
+                    </div>
+                </div>
+                <div class="control-group">
                     <label class="hoofd-label">Camera Zoom</label>
                     <input type="range" id="zoomSlider" min="2" max="250" value="4.5" step="0.5">
                 </div>
                 <div class="control-group">
                     <label class="checkbox-row"><input type="checkbox" id="autoRotCheck"> 🔄 Auto-Roteer Camera</label>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Camera kanteling (graden)</label>
+                    <input type="range" id="camRoll" min="-90" max="90" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🥊 Beat Punch (zoom-klap + kanteling op de beat)</label>
+                    <input type="range" id="beatPunch" min="0" max="30" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">📳 Camera Shake</label>
+                    <input type="range" id="camShake" min="0" max="1" value="0" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🧲 Muis-magneet (+ afstoten / − aantrekken)</label>
+                    <input type="range" id="magnetSlider" min="-3" max="3" value="0" step="0.1">
                 </div>
                 <div class="control-group">
                     <label class="hoofd-label">Basis Vloeistof / Animatiesnelheid</label>
@@ -318,6 +506,88 @@
                     <label class="hoofd-label">Basis Chromatic Aberration</label>
                     <input type="range" id="rgbSlider" min="0" max="0.01" value="0.0015" step="0.0005">
                 </div>
+                <div class="control-group">
+                    <label class="hoofd-label">⚡ Beat Flash (lichtflits + bloom-piek)</label>
+                    <input type="range" id="flashAmt" min="0" max="1" value="0" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="checkbox-row"><input type="checkbox" id="autoQualityCheck" checked> ⚡ Auto-kwaliteit (resolutie zakt bij lage FPS)</label>
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🎞️ Post-FX Studio</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="hoofd-label">🔮 Kaleidoscoop (segmenten)</label>
+                    <input type="range" id="fxKaleido" min="0" max="16" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🪞 Spiegel</label>
+                    <select id="fxMirror"><option value="0">Uit</option><option value="1">Links/Rechts</option><option value="2">Vier kwadranten</option></select>
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">👾 Pixelate (blokgrootte)</label>
+                    <input type="range" id="fxPixel" min="0" max="40" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🎨 Posterize (kleurniveaus)</label>
+                    <input type="range" id="fxPoster" min="0" max="12" value="0" step="1">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Verzadiging</label>
+                    <input type="range" id="fxSat" min="0" max="3" value="1" step="0.05">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">📺 CRT Scanlines</label>
+                    <input type="range" id="fxScan" min="0" max="1" value="0" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🎞️ Film Grain</label>
+                    <input type="range" id="fxGrain" min="0" max="0.5" value="0" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">Vignet</label>
+                    <input type="range" id="fxVignette" min="0" max="1" value="0" step="0.01">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🔍 Lens (− kussen / + ton)</label>
+                    <input type="range" id="fxWarp" min="-1" max="1" value="0" step="0.05">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">🌊 Golvend beeld (wobble)</label>
+                    <input type="range" id="fxWobble" min="0" max="2" value="0" step="0.05">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">💨 Zoom-blur (snelheidslijnen)</label>
+                    <input type="range" id="fxBlur" min="0" max="0.3" value="0" step="0.005">
+                </div>
+                <div class="control-group">
+                    <label class="hoofd-label">👻 Trails (nalichten)</label>
+                    <input type="range" id="fxTrails" min="0" max="0.97" value="0" step="0.01">
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🤖 Auto-DJ & Demo</summary>
+            <div class="details-content">
+                <div class="control-group">
+                    <label class="checkbox-row"><input type="checkbox" id="demoCheck" checked> 🥁 Demo-ritme (als er geen audio actief is)</label>
+                    <div class="input-row" style="margin-top:8px;">
+                        <label class="mini-label">Tempo (BPM)</label>
+                        <input type="range" id="demoBpm" min="60" max="180" value="124" step="1">
+                    </div>
+                </div>
+                <div class="control-group" style="border-top: 1px solid #333; padding-top:10px;">
+                    <label class="checkbox-row"><input type="checkbox" id="djCheck"> 🎧 Auto-DJ: wissel zelf van scène (D)</label>
+                    <div class="input-row" style="margin-top:8px;">
+                        <label class="mini-label">Wissel elke (sec)</label>
+                        <input type="range" id="djInterval" min="4" max="60" value="14" step="1">
+                    </div>
+                    <div class="hint">Wisselt op de eerstvolgende beat nadat de tijd om is.</div>
+                </div>
             </div>
         </details>
 
@@ -326,12 +596,21 @@
             <div class="details-content">
                 <button id="sysAudioBtn" class="btn-sys">🎵 Systeem Audio (YouTube)</button>
                 <button id="micBtn" class="btn-audio">🎙️ Microfoon (Stem)</button>
+                <button id="fileAudioBtn" class="btn-audio">🎶 Audiobestand (of sleep het hierheen)</button>
                 <button id="exportBtn" class="btn-export">📸 Sla op als Afbeelding (PNG)</button>
+                <div id="audio-status"></div>
+                <button id="recBtn" class="btn-audio btn-rec">⏺ Video opnemen (WebM)</button>
+                <div class="btn-row">
+                    <button id="shareBtn" class="btn-audio">🔗 Deel-link</button>
+                    <button id="fullscreenBtn" class="btn-audio">⛶ Fullscreen (F)</button>
+                </div>
+                <button id="resetBtn" class="btn-reset">↺ Reset instellingen</button>
             </div>
         </details>
 
     </div>
     
+    <div id="toast"></div>
     <div id="canvas-container"></div>
     <script src="main.js"></script>
 </body>
