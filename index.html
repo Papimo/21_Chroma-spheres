@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chroma Generator - V15</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg style='mix-blend-mode:multiply'%3E%3Ccircle cx='12' cy='12' r='8' fill='%23ff6b8b'/%3E%3Ccircle cx='20' cy='12' r='8' fill='%23ffd166' opacity='.85'/%3E%3Ccircle cx='16' cy='19.5' r='8' fill='%234cc9f0' opacity='.8'/%3E%3C/g%3E%3C/svg%3E">
     <style>
         :root {
             --primary: #00d4ff;
@@ -95,6 +96,10 @@
         }
         .btn-audio { background: linear-gradient(45deg, #2a2a35, #3a3a45); border: 1px solid #555; }
         .btn-sys { background: linear-gradient(45deg, #ff0055, #9900ff); box-shadow: 0 4px 15px rgba(255,0,85,0.4); }
+        #logo { user-select: none; }
+        #devMenu { border: 1px dashed #555; border-radius: 8px; padding: 8px; margin-bottom: 12px; }
+        #devMenu[hidden] { display: none; }
+        .dev-t { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; opacity: .6; margin-bottom: 6px; }
         .btn-export { background: linear-gradient(45deg, #00d4ff, #0055ff); box-shadow: 0 4px 15px rgba(0,212,255,0.3); margin-top: 15px;}
         .btn-nuke { background: linear-gradient(45deg, #ff0000, #ff5500); box-shadow: 0 4px 15px rgba(255,0,0,0.4); font-size: 12px;}
         button:hover { filter: brightness(1.2); transform: translateY(-1px); }
@@ -145,7 +150,12 @@
 <body>
     <button id="ui-toggle" title="Paneel tonen/verbergen (H)">☰ UI (H)</button>
     <div id="controls">
-        <h2>Chroma <span style="color:var(--primary)">V15</span> <div id="fps-counter">60 FPS</div></h2>
+        <h2 id="logo">Chroma <span style="color:var(--primary)">V15</span> <div id="fps-counter">60 FPS</div></h2>
+
+        <div id="devMenu" hidden>
+            <div class="dev-t">Developer</div>
+            <button id="mmBtn" class="btn-audio" title="Open het huidige beeld in de mock-up maker (65)">🖼️ Naar mock-up maker</button>
+        </div>
 
         <button id="surpriseBtn" class="btn-surprise">🎲 Verras me! (R)</button>
         <div style="margin-bottom:12px;"></div>
@@ -612,6 +622,7 @@
     
     <div id="toast"></div>
     <div id="canvas-container"></div>
+    <script src="../65_mock-up-maker/js/mm-send.js"></script>
     <script src="main.js"></script>
 </body>
 </html>

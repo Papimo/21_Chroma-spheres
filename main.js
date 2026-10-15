@@ -693,6 +693,19 @@ function exportPNG() {
 }
 $('exportBtn').addEventListener('click', exportPNG);
 
+// developer-menu: 5× snel op de titel klikken
+{ let n = 0, t; $('logo').addEventListener('click', () => { clearTimeout(t); t = setTimeout(() => (n = 0), 1500); if (++n === 5) { n = 0; $('devMenu').hidden = !$('devMenu').hidden; } }); }
+// naar 65_mock-up-maker: huidig beeld als PNG
+$('mmBtn').addEventListener('click', () => {
+    if (!window.MMSend) { showToast('Mock-up maker niet gevonden (map 65_mock-up-maker).'); return; }
+    MMSend.open();
+    composer.render();
+    renderer.domElement.toBlob(async blob => {
+        try { await MMSend.send(blob, 'chroma', '21 Chroma-spheres'); showToast('Verstuurd naar de mock-up maker.'); }
+        catch (e) { showToast('Versturen mislukt: ' + e.message); }
+    }, 'image/png');
+});
+
 // --- VIDEO OPNEMEN ---
 let recorder = null; let recChunks = []; let recStart = 0; let recTimer = null;
 function toggleRecord() {
